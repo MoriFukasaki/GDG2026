@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PDF Quiz Builder</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #17221b;
+        --muted: #66736a;
+        --paper: #fffdf7;
+        --mint: #d9f0dd;
+        --leaf: #2c7755;
+        --coral: #e86f51;
+        --line: #d9e2d9;
+        --shadow: 0 18px 50px rgba(35, 67, 47, 0.12);
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        color: var(--ink);
+        background: linear-gradient(135deg, #eef7e9 0%, #fff9ec 54%, #fce8df 100%);
+        font-family: Georgia, "Times New Roman", serif;
+      }
+
+      main { width: min(1100px, calc(100% - 32px)); margin: 0 auto; padding: 44px 0 72px; }
+      .eyebrow { margin: 0 0 10px; color: var(--leaf); font: 700 12px/1.2 Arial, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; }
+      h1 { max-width: 700px; margin: 0; color: var(--ink); font-family: "Segoe UI", Arial, sans-serif; font-size: clamp(42px, 7vw, 78px); line-height: 1.02; font-weight: 700; letter-spacing: 0; word-spacing: normal; }
+      .intro { max-width: 620px; margin: 22px 0 32px; color: var(--muted); font: 18px/1.55 Arial, sans-serif; }
+      .workspace { display: grid; grid-template-columns: 330px 1fr; gap: 24px; align-items: start; }
+      .panel, .question { border: 1px solid rgba(44, 119, 85, 0.16); border-radius: 8px; background: rgba(255, 253, 247, 0.9); box-shadow: var(--shadow); }
+      .panel { position: sticky; top: 20px; padding: 22px; }
+      label { display: block; margin: 0 0 8px; font: 700 13px/1.3 Arial, sans-serif; }
+      input[type="file"], input[type="number"] { width: 100%; margin-bottom: 18px; font: 14px Arial, sans-serif; }
+      input[type="file"] { padding: 14px; border: 1px dashed var(--leaf); border-radius: 6px; background: var(--mint); }
+      input[type="number"] { padding: 11px; border: 1px solid var(--line); border-radius: 6px; }
+      select, textarea { width: 100%; padding: 11px; border: 1px solid var(--line); border-radius: 6px; font: 14px Arial, sans-serif; }
+      select { margin-bottom: 18px; background: white; }
+      textarea { min-height: 110px; margin-top: 12px; resize: vertical; }
+      button { width: 100%; padding: 13px 16px; border: 0; border-radius: 6px; color: white; background: var(--leaf); cursor: pointer; font: 700 14px Arial, sans-serif; }
+      button:hover { background: #205d41; }
+      .question-actions { display: flex; gap: 8px; margin-top: 12px; }
+      .question-actions button { width: auto; padding: 10px 13px; }
+      .question-actions .speak-button { background: var(--coral); }
+      .evaluation { margin-top: 14px; padding: 12px; border-left: 3px solid var(--leaf); background: var(--mint); font: 14px/1.5 Arial, sans-serif; }
+      button:disabled { opacity: 0.55; cursor: wait; }
+      .hint, #status { color: var(--muted); font: 13px/1.45 Arial, sans-serif; }
+      #status { min-height: 20px; margin: 14px 0 0; }
+      .results { min-width: 0; }
+      .results-head { display: flex; justify-content: space-between; gap: 16px; align-items: end; margin-bottom: 18px; }
+      h2 { margin: 0; color: var(--ink); font-family: "Segoe UI", Arial, sans-serif; font-size: 32px; line-height: 1.2; font-weight: 600; letter-spacing: 0; word-spacing: normal; }
+      #count { color: var(--leaf); font: 700 13px Arial, sans-serif; }
+      .question { margin-bottom: 14px; padding: 22px; box-shadow: none; }
+      .question-number { color: var(--coral); font: 700 13px Arial, sans-serif; }
+      .question h3 { margin: 8px 0 16px; color: var(--ink); font-family: "Segoe UI", Arial, sans-serif; font-size: 22px; line-height: 1.35; font-weight: 600; word-spacing: normal; }
+      .options { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; font: 15px/1.45 Arial, sans-serif; }
+      .options li { padding: 11px 13px; border: 1px solid var(--line); border-radius: 5px; background: white; }
+      .answer { margin: 16px 0 0; padding: 12px; border-left: 3px solid var(--coral); background: #fff1eb; font: 14px/1.5 Arial, sans-serif; }
+      .empty { padding: 54px 20px; border: 1px dashed var(--line); border-radius: 8px; color: var(--muted); text-align: center; font: 15px/1.5 Arial, sans-serif; }
+      @media (max-width: 760px) {
+        main { padding-top: 28px; }
+        .workspace { grid-template-columns: 1fr; }
+        .panel { position: static; }
+        .results-head { align-items: start; flex-direction: column; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">PDF → quiz JSON</p>
+      <h1>Biến tài liệu thành bài kiểm tra.</h1>
+      <p class="intro">Chọn một file PDF, gửi lên API Groq và xem bộ câu hỏi sinh ra ngay trên trang này.</p>
+
+      <section class="workspace">
+        <form class="panel" id="quiz-form">
+          <label for="pdf-file">File PDF</label>
+          <input id="pdf-file" name="file" type="file" accept="application/pdf" required />
+          <label for="question-count">Số câu hỏi</label>
+          <input id="question-count" name="count" type="number" min="1" max="50" value="10" />
+          <label for="difficulty">Mức độ</label>
+          <select id="difficulty" name="difficulty">
+            <option value="easy">Dễ</option>
+            <option value="medium">Trung bình</option>
+            <option value="hard">Khó</option>
+          </select>
+          <button id="submit-button" type="submit">Tạo bộ câu hỏi</button>
+          <p id="status" role="status"></p>
+          <p class="hint">PDF cần có lớp văn bản. File scan chưa có OCR sẽ không đọc được.</p>
+        </form>
+
+        <section class="results" aria-live="polite">
+          <div class="results-head">
+            <h2 id="quiz-title">Kết quả</h2>
+            <span id="count"></span>
+          </div>
+          <div id="questions" class="empty">Bộ câu hỏi sẽ xuất hiện ở đây sau khi bạn gửi PDF.</div>
+        </section>
+      </section>
+    </main>
+
+    <script>
+      const form = document.querySelector("#quiz-form");
+      const fileInput = document.querySelector("#pdf-file");
+      const countInput = document.querySelector("#question-count");
+      const difficultyInput = document.querySelector("#difficulty");
+      const submitButton = document.querySelector("#submit-button");
+      const status = document.querySelector("#status");
+      const title = document.querySelector("#quiz-title");
+      const count = document.querySelector("#count");
+      const questions = document.querySelector("#questions");
+
+      function renderQuestions(data) {
+        title.textContent = data.title || "Bộ câu hỏi";
+        count.textContent = `${data.questions.length} câu hỏi · ${data.source}`;
+        questions.className = "";
+        questions.innerHTML = data.questions.map((item, index) => {
+          const encodedQuestion = encodeURIComponent(item.question || "");
+          const encodedExpected = encodeURIComponent(item.expected_answer || "");
+          const difficulty = item.difficulty || "medium";
+          return `<article class="question">
+            <div class="question-number">CÂU ${index + 1} · ${difficulty.toUpperCase()}</div>
+            <h3>${item.question}</h3>
+            <p class="hint">Tiêu chí: ${item.explanation || "Trình bày các ý chính chính xác và có lập luận."}</p>
+            <textarea class="answer-input" placeholder="Nhập câu trả lời của bạn..."></textarea>
+            <div class="question-actions">
+              <button class="evaluate-button" type="button" data-question="${encodedQuestion}" data-expected="${encodedExpected}" data-difficulty="${difficulty}">Chấm câu trả lời</button>
+              <button class="speak-button" type="button" data-text="${encodedQuestion}" data-difficulty="${difficulty}">Đọc câu hỏi</button>
+            </div>
+            <div class="evaluation" hidden></div>
+          </article>`;
+        }).join("");
+      }
+
+      questions.addEventListener("click", async (event) => {
+        const button = event.target.closest("button");
+        if (!button) return;
+        const card = button.closest(".question");
+        const evaluation = card.querySelector(".evaluation");
+        if (button.classList.contains("speak-button")) {
+          button.disabled = true;
+          try {
+            const speechText = decodeURIComponent(button.dataset.text);
+            const response = await fetch("/api/speech", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text: speechText, difficulty: "easy", language: "vi" })
+            });
+            if (!response.ok) {
+              const data = await response.json().catch(() => ({}));
+              throw new Error(data.detail || "Không thể tạo giọng đọc ElevenLabs.");
+            }
+            const audioUrl = URL.createObjectURL(await response.blob());
+            const audio = new Audio(audioUrl);
+            await audio.play();
+            audio.addEventListener("ended", () => URL.revokeObjectURL(audioUrl), { once: true });
+            status.textContent = "Đang đọc bằng voice dễ của ElevenLabs.";
+          } catch (error) {
+            status.textContent = error.message;
+          } finally {
+            button.disabled = false;
+          }
+          return;
+        }
+        if (button.classList.contains("evaluate-button")) {
+          const answer = card.querySelector(".answer-input").value.trim();
+          if (!answer) return;
+          button.disabled = true;
+          try {
+            const response = await fetch("/api/interview/evaluate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                question: decodeURIComponent(button.dataset.question),
+                expected_answer: decodeURIComponent(button.dataset.expected),
+                answer,
+                difficulty: button.dataset.difficulty
+              })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.detail || "Không thể chấm câu trả lời.");
+            evaluation.hidden = false;
+            evaluation.innerHTML = `<strong>Điểm: ${data.score}/${data.max_score}</strong><br />${data.feedback || "Đã chấm xong."}`;
+          } catch (error) {
+            evaluation.hidden = false;
+            evaluation.textContent = error.message;
+          } finally {
+            button.disabled = false;
+          }
+        }
+      });
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!fileInput.files[0]) return;
+        const body = new FormData();
+        body.append("file", fileInput.files[0]);
+        body.append("count", countInput.value);
+          body.append("difficulty", difficultyInput.value);
+        submitButton.disabled = true;
+          status.textContent = "Đang đọc PDF và tạo câu hỏi (thường mất vài giây)...";
+        try {
+          const response = await fetch("/api/questions", { method: "POST", body });
+          const raw = await response.text();
+          let data;
+          try {
+            data = JSON.parse(raw);
+          } catch {
+            throw new Error(`Server trả về lỗi HTTP ${response.status}.`);
+          }
+          if (!response.ok) throw new Error(data.detail || "API trả về lỗi.");
+          renderQuestions(data);
+          status.textContent = "Đã tạo xong bộ câu hỏi.";
+        } catch (error) {
+          status.textContent = error.message;
+        } finally {
+          submitButton.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>
