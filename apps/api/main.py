@@ -8,12 +8,14 @@ import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from groq import Groq
 from pypdf import PdfReader
 from pydantic import BaseModel, Field
 
-load_dotenv()
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(PROJECT_ROOT / ".env")
 
 MODEL_CHOICE = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 Difficulty = Literal["easy", "medium", "hard"]
@@ -213,6 +215,11 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/api/hello", response_class=PlainTextResponse)
+def hello() -> str:
+    return "hello world"
+
+
 @app.post("/api/questions")
 async def create_questions(
     file: UploadFile = File(...),
@@ -251,7 +258,7 @@ async def speech(payload: SpeechRequest) -> Any:
     return Response(content=audio, media_type="audio/mpeg")
 
 
-frontend_dir = Path(__file__).with_name("frontend")
+frontend_dir = PROJECT_ROOT / "apps" / "web"
 if frontend_dir.is_dir():
     app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
 
@@ -259,4 +266,4 @@ if frontend_dir.is_dir():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="127.0.0.1", port=int(os.getenv("PORT", "8000")))
+    uvicorn.run(app, host=os.getenv("HOST", "127.0.0.1"), port=int(os.getenv("PORT", "8000")))

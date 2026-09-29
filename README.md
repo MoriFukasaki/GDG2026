@@ -42,6 +42,7 @@ ELEVENLABS_HARD_VOICE_ID=your_hard_voice_id
 ELEVENLABS_MODEL=eleven_flash_v2_5
 
 PORT=8000
+HOST=127.0.0.1
 ```
 
 `GROQ_MODEL` và `ELEVENLABS_MODEL` là tùy chọn vì ứng dụng đã có giá trị mặc định. Ba voice ID ElevenLabs cần thiết khi gọi chức năng đọc giọng nói; endpoint hiện tại dùng voice mức `easy`.
@@ -53,10 +54,67 @@ PORT=8000
 Khởi động API và frontend:
 
 ```powershell
-python api.py
+python apps/api/main.py
 ```
 
 Mở trình duyệt tại [http://127.0.0.1:8000](http://127.0.0.1:8000).
+
+### GET `hello world`
+
+```powershell
+curl.exe http://127.0.0.1:8000/api/hello
+```
+
+Khi thành công, HTTP 200 trả về text thuần `hello world`. Có thể kiểm tra cả status và body bằng `python tools/smoke_api.py --url http://127.0.0.1:8000/api/hello --expected-body "hello world"`.
+
+Nếu port 8000 đang được dùng, đặt `$env:PORT=8001` trước khi khởi động API, rồi gọi `http://127.0.0.1:8001/api/hello`.
+
+### Frontend chạy trên máy khác
+
+Cho backend lắng nghe trên mạng nội bộ trước khi khởi động:
+
+```powershell
+$env:HOST="0.0.0.0"
+$env:PORT="8001"
+python apps/api/main.py
+```
+
+Trên máy backend, chạy `ipconfig` để tìm địa chỉ IPv4 của card mạng đang dùng. Trên máy frontend cùng mạng, gọi `http://<IP-máy-backend>:8001/api/hello`; ví dụ:
+
+```js
+const response = await fetch("http://192.168.1.10:8001/api/hello");
+const message = await response.text(); // "hello world"
+```
+
+`0.0.0.0` chỉ là địa chỉ để server lắng nghe; frontend phải dùng IP thực của máy backend. Nếu không kết nối được, kiểm tra hai máy có cùng mạng và Windows Firewall có cho phép kết nối TCP đến port 8001. Nếu frontend chạy trên HTTPS công khai, trình duyệt thường sẽ chặn yêu cầu HTTP tới IP nội bộ; khi đó backend cần một địa chỉ HTTPS có thể truy cập từ máy frontend.
+
+### Frontend khác mạng qua ngrok
+
+Endpoint demo công khai được tách riêng ở `apps/api/public_hello.py` trên port 8002. Tiến trình này chỉ phục vụ `GET /api/hello`; các API dùng Groq hoặc ElevenLabs không nằm trên tunnel này.
+
+Ngrok đã được tải vào `.local/ngrok/ngrok.exe` (thư mục này không được commit). [Tạo tài khoản và lấy authtoken](https://dashboard.ngrok.com/get-started/your-authtoken), sau đó nhập token **trực tiếp trên máy**, không gửi qua chat:
+
+```powershell
+.\.local\ngrok\ngrok.exe config add-authtoken "<YOUR_AUTHTOKEN>"
+```
+
+Giữ `python apps/api/public_hello.py` chạy ở terminal thứ nhất. Tạo URL ở terminal thứ hai:
+
+```powershell
+.\.local\ngrok\ngrok.exe http 8002
+```
+
+Frontend khác mạng gọi `https://<URL-ngrok>/api/hello` và đọc response bằng `response.text()`:
+
+```js
+const response = await fetch("https://<URL-ngrok>/api/hello", {
+  headers: { "ngrok-skip-browser-warning": "true" }
+});
+if (!response.ok) throw new Error(`HTTP ${response.status}`);
+const message = await response.text(); // "hello world"
+```
+
+Header trên bỏ qua trang cảnh báo của gói ngrok miễn phí khi gọi bằng trình duyệt. URL ngrok chỉ hoạt động khi cả server demo và ngrok còn chạy.
 
 Quy trình sử dụng:
 
@@ -120,25 +178,34 @@ curl -X POST http://127.0.0.1:8000/api/speech `
 Chạy test API:
 
 ```powershell
-pytest -q
+python -m unittest discover -s apps/api -p "test_*.py" -v
 ```
 
 Kiểm tra cú pháp Python:
 
 ```powershell
-python -m py_compile api.py test_api.py
+python -m py_compile apps/api/main.py apps/api/test_main.py tools/smoke_api.py
 ```
 
 ## Cấu trúc dự án
 
 ```text
 .
-├── api.py                 # FastAPI, xử lý PDF, Groq, ElevenLabs
-├── test_api.py            # Công cụ gọi endpoint và kiểm tra HTTP status
-├── requirements.txt       # Python dependencies
-└── frontend/
-    └── index.html         # Giao diện PDF Quiz Builder
+├── ARCHITECTURE.md        # Sơ đồ và nguyên tắc kiến trúc
+├── apps/
+│   ├── api/
+│   │   ├── main.py         # FastAPI, xử lý PDF, Groq, ElevenLabs
+│   │   ├── public_hello.py # Endpoint hello riêng cho ngrok
+│   │   └── test_main.py    # Test GET và trang web
+│   └── web/
+│       └── index.html      # Giao diện PDF Quiz Builder
+├── tools/
+│   └── smoke_api.py        # Gọi thử API
+└── requirements.txt       # Python dependencies
 ```
+
+Chi tiết kiến trúc và cách mở rộng xem tại
+[`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## Xử lý lỗi thường gặp
 

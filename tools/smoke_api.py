@@ -26,7 +26,7 @@ def load_dotenv(path: Path) -> None:
 def build_url(endpoint: str | None) -> str:
     url = endpoint or os.getenv("API_ENDPOINT")
     if not url:
-        raise ValueError("Thiếu API_ENDPOINT trong .env")
+        return "http://127.0.0.1:8000/api/hello"
 
     if url.startswith("wss://"):
         url = "https://" + url.removeprefix("wss://")
@@ -40,14 +40,18 @@ def build_url(endpoint: str | None) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Gọi API trong .env và kiểm tra HTTP 202")
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    parser = argparse.ArgumentParser(description="Gọi API và kiểm tra HTTP status")
     parser.add_argument("--url", help="Endpoint API; mặc định dùng API_ENDPOINT")
     parser.add_argument("--method", default="GET", choices=("GET", "POST", "PUT", "PATCH", "DELETE"))
     parser.add_argument("--data", help="Body JSON, ví dụ: '{\"name\": \"test\"}'")
-    parser.add_argument("--expected-status", type=int, default=202)
+    parser.add_argument("--expected-status", type=int, default=200)
+    parser.add_argument("--expected-body", help="Kiểm tra nội dung response chính xác")
     args = parser.parse_args()
 
-    load_dotenv(Path(__file__).with_name(".env"))
+    load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
     try:
         url = build_url(args.url)
@@ -74,6 +78,10 @@ def main() -> int:
 
     if status != args.expected_status:
         print(f"Không đạt: cần HTTP {args.expected_status}, nhận được {status}.", file=sys.stderr)
+        return 1
+
+    if args.expected_body is not None and response_body != args.expected_body:
+        print(f"Không đạt: body cần {args.expected_body!r}, nhận {response_body!r}.", file=sys.stderr)
         return 1
 
     print(f"Đạt: API trả về HTTP {args.expected_status}.")
