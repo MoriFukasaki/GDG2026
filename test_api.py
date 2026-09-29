@@ -24,9 +24,9 @@ def load_dotenv(path: Path) -> None:
 
 
 def build_url(endpoint: str | None) -> str:
-    url = endpoint or os.getenv("API_ENDPOINT") or os.getenv("LIVEKIT_URL")
+    url = endpoint or os.getenv("API_ENDPOINT")
     if not url:
-        raise ValueError("Thiếu API_ENDPOINT hoặc LIVEKIT_URL trong .env")
+        raise ValueError("Thiếu API_ENDPOINT trong .env")
 
     if url.startswith("wss://"):
         url = "https://" + url.removeprefix("wss://")
@@ -41,7 +41,7 @@ def build_url(endpoint: str | None) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Gọi API trong .env và kiểm tra HTTP 202")
-    parser.add_argument("--url", help="Endpoint API; mặc định dùng API_ENDPOINT hoặc LIVEKIT_URL")
+    parser.add_argument("--url", help="Endpoint API; mặc định dùng API_ENDPOINT")
     parser.add_argument("--method", default="GET", choices=("GET", "POST", "PUT", "PATCH", "DELETE"))
     parser.add_argument("--data", help="Body JSON, ví dụ: '{\"name\": \"test\"}'")
     parser.add_argument("--expected-status", type=int, default=202)
@@ -68,7 +68,7 @@ def main() -> int:
         print(f"Lỗi gọi API: {error}", file=sys.stderr)
         return 1
 
-    print(f"URL: {'wss://se-v343yqyo.livekit.cloud'}")
+    print(f"URL: {url}")
     print(f"HTTP status: {status}")
     print(f"Response: {response_body[:1000]}")
 
