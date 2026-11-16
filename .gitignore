@@ -1,21 +1,37 @@
-# Environment and secrets
+# Credentials and local configuration
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*.p12
+*.pfx
 
-# Python virtual environments
-.venv/
-venv/
-env/
+# Local data, exports, and logs
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.log
+*.log.*
+*.csv
+*.tsv
+*.dump
+*.bak
+/backups/
+/exports/
+/data/
 
-# Python cache and test artifacts
+# Python and local tooling
 __pycache__/
 *.py[cod]
+.venv/
+venv/
 .pytest_cache/
-.mypy_cache/
 .ruff_cache/
-
-# Local logs and editor files
-*.log
 .vscode/
-.local/
+.idea/
+.DS_Store
+Thumbs.db

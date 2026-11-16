@@ -1,216 +1,82 @@
-# PDF Quiz Builder
+# Bụi Records
 
-Ứng dụng đọc tài liệu PDF, tạo câu hỏi tự luận bằng Groq, chấm câu trả lời bằng AI và đọc câu hỏi bằng ElevenLabs.
+Vinyl shop website (Vietnamese UI). FastAPI backend + SQLite + vanilla-JS frontend.
 
-## Yêu cầu
+## Data ownership
 
-- Python 3.10 trở lên
-- Tài khoản Groq cho quiz và chấm điểm
-- Tài khoản ElevenLabs cho chuyển văn bản thành giọng nói
+- **Discogs API:** release metadata only (cover, tracklist, genre, label) for the products in the shop. It is never used for prices.
+- **SQLite (`backend/bui_records.db`):**
+  - `release_prices` — the shop catalogue: which Discogs releases are for sale, VND price, stock status, stock.
+  - `preorders` — preorder pressings (title, slots, price, optional `discogs_release_id` for the cover).
+  - `preorder_reservations` — "giữ chỗ" with code (`GC-XXXXXX`), name, phone, status (`pending → confirmed → arrived`, or `cancelled`).
+  - `orders`, `order_items` — checkout results.
+- **Signed session cookie:** shopping cart only.
 
-## Cài đặt
+The **Sản phẩm** tab shows only releases that have a `release_prices` row; only those can be added to the cart.
 
-Tạo môi trường ảo và cài dependencies:
+## Set up locally
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-```
-
-Nếu PowerShell chặn kích hoạt môi trường ảo, chạy:
+From the project root in PowerShell:
 
 ```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\.venv\Scripts\Activate.ps1
+Copy-Item .env.example .env
+python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-## Cấu hình `.env`
-
-Tạo file `.env` ở thư mục gốc. Chỉ cần khai báo các biến của chức năng bạn sử dụng.
-
-### PDF Quiz Builder
-
-```env
-GROQ_API_KEY=your_groq_api_key
-GROQ_MODEL=openai/gpt-oss-120b
-
-ELEVENLABS_API_KEY=your_elevenlabs_api_key
-ELEVENLABS_EASY_VOICE_ID=your_easy_voice_id
-ELEVENLABS_MEDIUM_VOICE_ID=your_medium_voice_id
-ELEVENLABS_HARD_VOICE_ID=your_hard_voice_id
-ELEVENLABS_MODEL=eleven_flash_v2_5
-
-PORT=8000
-HOST=127.0.0.1
-```
-
-`GROQ_MODEL` và `ELEVENLABS_MODEL` là tùy chọn vì ứng dụng đã có giá trị mặc định. Ba voice ID ElevenLabs cần thiết khi gọi chức năng đọc giọng nói; endpoint hiện tại dùng voice mức `easy`.
-
-> Không đưa file `.env` hoặc API key lên Git. Hãy kiểm tra `.gitignore` trước khi commit.
-
-## Chạy PDF Quiz Builder
-
-Khởi động API và frontend:
+Put the generated value in `SECRET_KEY` in your local `.env`. Set
+`DISCOGS_TOKEN`, or set both `DISCOGS_CONSUMER_KEY` and
+`DISCOGS_CONSUMER_SECRET`. If you use the admin API, generate a separate random
+value for `ADMIN_TOKEN`. Leave `COOKIE_SECURE=0` for local HTTP and set it to
+`1` when serving over HTTPS.
 
 ```powershell
-python apps/api/main.py
+cd backend
+python -m pip install -r requirements.txt
+python app.py
 ```
 
-Mở trình duyệt tại [http://127.0.0.1:8000](http://127.0.0.1:8000).
+Open `http://127.0.0.1:5000`. The application creates a fresh SQLite database
+at startup. Add products with the CLI below.
 
-### GET `hello world`
+## Publish to GitHub
+
+Create an empty GitHub repository. From the project root:
 
 ```powershell
-curl.exe http://127.0.0.1:8000/api/hello
+git init -b main
+git add .
+git diff --cached --name-only
 ```
 
-Khi thành công, HTTP 200 trả về text thuần `hello world`. Có thể kiểm tra cả status và body bằng `python tools/smoke_api.py --url http://127.0.0.1:8000/api/hello --expected-body "hello world"`.
-
-Nếu port 8000 đang được dùng, đặt `$env:PORT=8001` trước khi khởi động API, rồi gọi `http://127.0.0.1:8001/api/hello`.
-
-### Frontend chạy trên máy khác
-
-Cho backend lắng nghe trên mạng nội bộ trước khi khởi động:
+Review the staged filenames before committing. Keep `.env`, SQLite files,
+logs, backups, and customer exports on your local machine or in private
+storage. Commit only source files and the blank `.env.example` template.
+If a credential was previously shared or committed, revoke or rotate it before
+publishing. If sensitive files are already in Git history, clean that history
+before pushing it.
 
 ```powershell
-$env:HOST="0.0.0.0"
-$env:PORT="8001"
-python apps/api/main.py
+git commit -m "Initial Bui Records source"
+git remote add origin https://github.com/OWNER/REPO.git
+git push -u origin main
 ```
 
-Trên máy backend, chạy `ipconfig` để tìm địa chỉ IPv4 của card mạng đang dùng. Trên máy frontend cùng mạng, gọi `http://<IP-máy-backend>:8001/api/hello`; ví dụ:
-
-```js
-const response = await fetch("http://192.168.1.10:8001/api/hello");
-const message = await response.text(); // "hello world"
-```
-
-`0.0.0.0` chỉ là địa chỉ để server lắng nghe; frontend phải dùng IP thực của máy backend. Nếu không kết nối được, kiểm tra hai máy có cùng mạng và Windows Firewall có cho phép kết nối TCP đến port 8001. Nếu frontend chạy trên HTTPS công khai, trình duyệt thường sẽ chặn yêu cầu HTTP tới IP nội bộ; khi đó backend cần một địa chỉ HTTPS có thể truy cập từ máy frontend.
-
-### Frontend khác mạng qua ngrok
-
-Endpoint demo công khai được tách riêng ở `apps/api/public_hello.py` trên port 8002. Tiến trình này chỉ phục vụ `GET /api/hello`; các API dùng Groq hoặc ElevenLabs không nằm trên tunnel này.
-
-Ngrok đã được tải vào `.local/ngrok/ngrok.exe` (thư mục này không được commit). [Tạo tài khoản và lấy authtoken](https://dashboard.ngrok.com/get-started/your-authtoken), sau đó nhập token **trực tiếp trên máy**, không gửi qua chat:
-
-```powershell
-.\.local\ngrok\ngrok.exe config add-authtoken "<YOUR_AUTHTOKEN>"
-```
-
-Giữ `python apps/api/public_hello.py` chạy ở terminal thứ nhất. Tạo URL ở terminal thứ hai:
-
-```powershell
-.\.local\ngrok\ngrok.exe http 8002
-```
-
-Frontend khác mạng gọi `https://<URL-ngrok>/api/hello` và đọc response bằng `response.text()`:
-
-```js
-const response = await fetch("https://<URL-ngrok>/api/hello", {
-  headers: { "ngrok-skip-browser-warning": "true" }
-});
-if (!response.ok) throw new Error(`HTTP ${response.status}`);
-const message = await response.text(); // "hello world"
-```
-
-Header trên bỏ qua trang cảnh báo của gói ngrok miễn phí khi gọi bằng trình duyệt. URL ngrok chỉ hoạt động khi cả server demo và ngrok còn chạy.
-
-Quy trình sử dụng:
-
-1. Chọn một file PDF có lớp văn bản.
-2. Chọn số câu hỏi từ 1 đến 50.
-3. Chọn mức độ `Dễ`, `Trung bình` hoặc `Khó`.
-4. Bấm **Tạo bộ câu hỏi**.
-5. Nhập câu trả lời và bấm **Chấm câu trả lời**.
-6. Bấm **Đọc câu hỏi** để tạo audio tiếng Việt bằng ElevenLabs.
-
-PDF scan không có lớp văn bản sẽ không đọc được nếu chưa chạy OCR.
-
-## API chính
-
-### Kiểm tra trạng thái
-
-```powershell
-curl http://127.0.0.1:8000/api/health
-```
-
-Kết quả:
-
-```json
-{"status":"ok"}
-```
-
-### Tạo câu hỏi từ PDF
-
-```powershell
-curl -X POST http://127.0.0.1:8000/api/questions `
-  -F "file=@./tai-lieu.pdf" `
-  -F "count=10" `
-  -F "difficulty=medium"
-```
-
-Các giá trị `difficulty` hợp lệ là `easy`, `medium` và `hard`. API trả về tiêu đề, nguồn PDF và danh sách câu hỏi gồm `question`, `expected_answer`, `explanation` và `difficulty`.
-
-### Chấm câu trả lời
-
-```powershell
-curl -X POST http://127.0.0.1:8000/api/interview/evaluate `
-  -H "Content-Type: application/json" `
-  -d '{"question":"HTTP là gì?","expected_answer":"Giao thức truyền siêu văn bản","answer":"HTTP là giao thức dùng để truyền dữ liệu trên web.","difficulty":"medium"}'
-```
-
-Kết quả gồm điểm trên thang 10, các ý đã nêu, ý còn thiếu, nhận xét, đáp án mẫu và hành động tiếp theo.
-
-### Chuyển văn bản thành giọng nói
-
-```powershell
-curl -X POST http://127.0.0.1:8000/api/speech `
-  -H "Content-Type: application/json" `
-  -d '{"text":"Xin chào, chúng ta bắt đầu nhé.","language":"vi","difficulty":"easy"}' `
-  --output voice.mp3
-```
-
-`language` nhận `vi` hoặc `en`.
-
-## Kiểm thử
-
-Chạy test API:
-
-```powershell
-python -m unittest discover -s apps/api -p "test_*.py" -v
-```
-
-Kiểm tra cú pháp Python:
-
-```powershell
-python -m py_compile apps/api/main.py apps/api/test_main.py tools/smoke_api.py
-```
-
-## Cấu trúc dự án
+## Manage the shop (CLI)
 
 ```text
-.
-├── ARCHITECTURE.md        # Sơ đồ và nguyên tắc kiến trúc
-├── apps/
-│   ├── api/
-│   │   ├── main.py         # FastAPI, xử lý PDF, Groq, ElevenLabs
-│   │   ├── public_hello.py # Endpoint hello riêng cho ngrok
-│   │   └── test_main.py    # Test GET và trang web
-│   └── web/
-│       └── index.html      # Giao diện PDF Quiz Builder
-├── tools/
-│   └── smoke_api.py        # Gọi thử API
-└── requirements.txt       # Python dependencies
+python database.py set-price <discogs_id> <price> [status]   # add/update a product
+python database.py import-prices prices.csv                  # bulk import
+python database.py list-prices
+python database.py list-reservations
+python database.py set-reservation <code> <pending|confirmed|arrived|cancelled>
 ```
 
-Chi tiết kiến trúc và cách mở rộng xem tại
-[`ARCHITECTURE.md`](ARCHITECTURE.md).
+Reservation lookup is a POST (so phone numbers stay out of URLs/logs): `POST /api/reservations/lookup` `{code, phone}`.
 
-## Xử lý lỗi thường gặp
+Admin API (same effect): `PUT /api/admin/reservations/<code>` with header `X-Admin-Token` and body `{"status": "confirmed"}`.
 
-- **`Thiếu GROQ_API_KEY`:** kiểm tra file `.env` ở đúng thư mục gốc và khởi động lại server.
-- **`Thiếu ELEVENLABS_API_KEY` hoặc voice ID:** bổ sung đầy đủ biến ElevenLabs.
-- **PDF không đọc được:** dùng PDF có thể bôi đen/copy chữ hoặc chạy OCR trước.
-- **Groq trả về lỗi hoặc timeout:** kiểm tra API key, hạn mức tài khoản và tên model trong `GROQ_MODEL`.
-- **Không nghe được audio:** kiểm tra trình duyệt có quyền phát âm thanh và ElevenLabs đã trả về file thành công.
+## Before launch
+
+The browser can never set a price: the shop price comes from `release_prices` and is re-checked at checkout together with stock.
+
+Set up the product catalogue and preorders. Review the Phụ kiện mock data (hard-coded in `frontend/script.js`) and the shop address, map, and hours shown on the visit page.
