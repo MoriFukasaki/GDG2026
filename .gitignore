@@ -17,6 +17,7 @@
 *.log
 *.log.*
 *.csv
+!/backend/catalog_seed.csv
 *.tsv
 *.dump
 *.bak

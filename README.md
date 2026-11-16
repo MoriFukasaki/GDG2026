@@ -36,7 +36,8 @@ python app.py
 ```
 
 Open `http://127.0.0.1:5000`. The application creates a fresh SQLite database
-at startup. Add products with the CLI below.
+at startup and loads the sample catalogue from `backend/catalog_seed.csv`.
+An existing catalogue is preserved. Manage products with the CLI below.
 
 ## Publish to GitHub
 
@@ -50,7 +51,9 @@ git diff --cached --name-only
 
 Review the staged filenames before committing. Keep `.env`, SQLite files,
 logs, backups, and customer exports on your local machine or in private
-storage. Commit only source files and the blank `.env.example` template.
+storage. The sample catalogue contains only Discogs release IDs, VND prices,
+and sale statuses. Commit it with the source files and the blank
+`.env.example` template.
 If a credential was previously shared or committed, revoke or rotate it before
 publishing. If sensitive files are already in Git history, clean that history
 before pushing it.

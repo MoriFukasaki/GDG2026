@@ -18,6 +18,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(HERE, "bui_records.db")
+CATALOG_SEED_PATH = os.path.join(HERE, "catalog_seed.csv")
 
 
 def get_db():
@@ -59,9 +60,11 @@ def init_db():
     catalogue data now comes from Discogs. Existing order/preorder data is kept.
     """
     with get_db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        schema_version = conn.execute("PRAGMA user_version").fetchone()[0]
         # One-time cleanup of the old local-catalogue tables (guarded so a future table
         # with one of these names is never wiped on every start).
-        if conn.execute("PRAGMA user_version").fetchone()[0] < 1:
+        if schema_version < 1:
             for table in (
                 "tracks",
                 "records",
@@ -72,7 +75,6 @@ def init_db():
                 "carts",
             ):
                 conn.execute(f"DROP TABLE IF EXISTS {table}")
-            conn.execute("PRAGMA user_version = 1")
 
         conn.execute(
             """
@@ -166,6 +168,18 @@ def init_db():
             )
             """
         )
+
+        if schema_version < 2:
+            if conn.execute("SELECT 1 FROM release_prices LIMIT 1").fetchone() is None:
+                with open(CATALOG_SEED_PATH, newline="", encoding="utf-8") as seed:
+                    for row in csv.DictReader(seed):
+                        set_price(
+                            conn,
+                            row["discogs_release_id"],
+                            row["price"],
+                            stock_status=row["stock_status"],
+                        )
+            conn.execute("PRAGMA user_version = 2")
 
         conn.commit()
 
